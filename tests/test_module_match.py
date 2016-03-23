@@ -23,7 +23,7 @@
 #
 
 from wishbone.event import Event
-from wishbone.utils import getter
+from wishbone.utils.test import getter
 from wishbone.module.match import Match
 from wishbone.actor import ActorConfig
 from gevent import sleep
