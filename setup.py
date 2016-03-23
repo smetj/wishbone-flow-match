@@ -57,7 +57,7 @@ setup(
     name=PROJECT,
     version=VERSION,
 
-    description='A Wishbone flow module for JSON pattern matching using jq expressions.',
+    description='',
     long_description=long_description,
 
     author='Jelle Smet',
@@ -87,7 +87,7 @@ setup(
     zip_safe=False,
     entry_points={
         'wishbone.flow': [
-            'jq=wishbone_flow_match:Match',
+            'match=match:Match',
         ]
     }
 )
