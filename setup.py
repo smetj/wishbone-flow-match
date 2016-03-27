@@ -87,7 +87,7 @@ setup(
     zip_safe=False,
     entry_points={
         'wishbone.flow': [
-            'match=match:Match',
+            'match=wishbone_flow_match:Match',
         ]
     }
 )
