@@ -57,7 +57,7 @@ setup(
     name=PROJECT,
     version=VERSION,
 
-    description='',
+    description='A Wishbone flow module for pattern matching on a key/value document stream.',
     long_description=long_description,
 
     author='Jelle Smet',
