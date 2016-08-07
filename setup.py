@@ -27,11 +27,11 @@ from setuptools.command.test import test as TestCommand
 import sys
 
 PROJECT = 'wishbone_flow_match'
-VERSION = '0.1.0'
+VERSION = '1.1.0'
 
 install_requires = [
     'wishbone>=2.1.1',
-    'gevent_inotifyx==0.1.1'
+    'deepdiff'
 ]
 
 try:
@@ -69,6 +69,7 @@ setup(
                  'License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)',
                  'Programming Language :: Python',
                  'Programming Language :: Python :: 2.7',
+                 'Programming Language :: Python :: 3',
                  'Programming Language :: Python :: Implementation :: PyPy',
                  'Intended Audience :: Developers',
                  'Intended Audience :: System Administrators',
