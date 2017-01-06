@@ -30,6 +30,7 @@ import os
 import yaml
 from yaml.parser import ParserError
 
+
 class ReadRulesDisk():
 
     '''

@@ -240,14 +240,12 @@ class Match(Actor):
             for field in condition:
                 if field in fields:
                     try:
-                        match_result = self.match.do(condition[field], fields[field])
+                        if not self.match.do(condition[field], fields[field]):
+                            # self.logging.debug("field %s with condition %s DOES NOT MATCH value %s" % (field, condition[field], fields[field]))
+                            return False
                     except Exception as err:
                         self.logging.error("Invalid condition '%s'. Skipped.  Reason: %s" % (condition[field], err))
                         return False
-                    finally:
-                        if not match_result:
-                            # self.logging.debug("field %s with condition %s DOES NOT MATCH value %s" % (field, condition[field], fields[field]))
-                            return False
                 else:
                     if not self.kwargs.ignore_missing_fields:
                         return False
