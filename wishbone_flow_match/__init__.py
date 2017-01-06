@@ -27,8 +27,6 @@ from wishbone import Actor
 from gevent import sleep
 from .matchrules import MatchRules
 from .readrules import ReadRulesDisk
-import os
-from copy import deepcopy
 from gevent.lock import Semaphore
 
 
@@ -58,7 +56,7 @@ class Match(Actor):
         >=:     Bigger or equal than
         <:      Smaller than
         <=:     Smaller or equal than
-        =:      Equal than
+        =:      Equal than (numeric only)
         in:     Evaluate list membership
         !in:    Evaluate negative list membership
 
@@ -164,25 +162,23 @@ class Match(Actor):
         self.rule_lock = Semaphore()
 
     def preHook(self):
-
-        if self.kwargs.location != "":
-            self.createDir()
-            self.logging.info("Rules directoy '%s' defined." % (self.kwargs.location))
-            self.sendToBackground(self.monitorRuleDirectory)
-        else:
+        if self.kwargs.location == "":
             self.__active_rules.update(self.uplook.dump()["rules"])
             self.logging.info("No rules directory defined, not reading rules from disk.")
-
-    def createDir(self):
-
-        if os.path.exists(self.kwargs.location):
-            if not os.path.isdir(self.kwargs.location):
-                raise Exception("%s exists but is not a directory" % (self.kwargs.location))
-            else:
-                self.logging.info("Directory %s exists so I'm using it." % (self.kwargs.location))
         else:
-            self.logging.info("Directory %s does not exist so I'm creating it." % (self.kwargs.location))
-            os.makedirs(self.kwargs.location)
+            self.read_rules_disk = ReadRulesDisk(self.logging, self.kwargs.location)
+            disk_rules = self.read_rules_disk.getRules()
+            self.activateNewRules(disk_rules)
+            self.sendToBackground(self.monitorRuleDirectory)
+
+    def activateNewRules(self, rules):
+
+        self.rule_lock.acquire()
+        self.__active_rules={}
+        self.__active_rules.update(rules)
+        self.__active_rules.update(self.kwargs.rules)
+        self.logging.info("Read %s rules from disk and %s defined in config." % (len(rules), len(self.kwargs.rules)))
+        self.rule_lock.release()
 
     def monitorRuleDirectory(self):
 
@@ -190,25 +186,15 @@ class Match(Actor):
         Loads new rules when changes happen.
         '''
 
-        self.logging.info("Monitoring directory '%s' for changes" % (self.kwargs.location))
-        self.readRules = ReadRulesDisk(self.logging, self.kwargs.location)
+        self.logging.info("Monitoring rules directory '%s' for changes" % (self.kwargs.location))
 
-        new_rules = self.readRules.readDirectory()
-        new_rules.update(self.kwargs.rules)
-        self.__active_rules = new_rules
-        self.logging.info("Read %s rules from disk and %s defined in config." % (len(new_rules), len(self.kwargs.rules)))
         while self.loop():
             try:
-                new_rules = self.readRules.waitForChanges()
-                new_rules.update(self.kwargs.rules)
-                if cmp(self.__active_rules, new_rules) != 0:
-                    self.rule_lock.acquire()
-                    self.__active_rules = new_rules
-                    self.rule_lock.release()
-                    self.logging.info("Read %s rules from disk and %s defined in config." % (len(new_rules), len(self.kwargs.rules)))
+                new_rules = self.read_rules_disk.getRulesWait()
+                self.activateNewRules(new_rules)
             except Exception as err:
                 self.logging.warning("Problem reading rules directory.  Reason: %s" % (err))
-                sleep(1)
+                sleep(0.5)
 
     def consume(self, event):
         '''Submits matching documents to the defined queue along with
@@ -217,20 +203,20 @@ class Match(Actor):
         if isinstance(event.get(), dict):
             self.rule_lock.acquire()
             for rule in self.__active_rules:
-                e = deepcopy(event)
+                e = event.clone()
                 if self.evaluateCondition(self.__active_rules[rule]["condition"], e.get()):
                     e.set(rule, '@tmp.%s.rule' % (self.name))
                     for queue in self.__active_rules[rule]["queue"]:
-                        event_copy = deepcopy(e)
+                        event_copy = e.clone()
                         for name in queue:
                             if queue[name] is not None:
-                                for key, value in queue[name].iteritems():
+                                for key, value in queue[name].items():
                                     event_copy.set(value, '@tmp.%s.%s' % (self.name, key))
                             self.submit(event_copy, self.pool.getQueue(name))
                 else:
                     e.set(rule, "@tmp.%s.rule" % (self.name))
                     self.submit(e, self.pool.queue.nomatch)
-                    # self.logging.debug("No match for rule %s." % (rule))
+                    self.logging.debug("No match for rule '%s'." % (rule))
             self.rule_lock.release()
         else:
             raise Exception("Incoming data is not of type dict, dropped.")
@@ -240,12 +226,14 @@ class Match(Actor):
             for field in condition:
                 if field in fields:
                     try:
-                        if not self.match.do(condition[field], fields[field]):
-                            # self.logging.debug("field %s with condition %s DOES NOT MATCH value %s" % (field, condition[field], fields[field]))
-                            return False
+                        match_result = self.match.do(condition[field], fields[field])
                     except Exception as err:
-                        self.logging.error("Invalid condition '%s'. Skipped.  Reason: %s" % (condition[field], err))
+                        self.logging.error("Invalid condition '%s'. Skipped.  Reason: '%s'" % (condition[field], err))
                         return False
+                    else:
+                        if not match_result:
+                            self.logging.debug("field '%s' with condition '%s' DOES NOT MATCH value '%s'" % (field, condition[field], fields[field]))
+                            return False
                 else:
                     if not self.kwargs.ignore_missing_fields:
                         return False

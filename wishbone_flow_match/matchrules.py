@@ -36,7 +36,7 @@ class MatchRules():
     >=:     Bigger or equal than
     <:      Smaller than
     <=:     Smaller or equal than
-    =:      Equal than
+    =:      Equal to (numerals only)
     in:     Check whether element is in list
     !in:    Check whether element is not in list
     '''
@@ -54,12 +54,25 @@ class MatchRules():
                         "!in": self.hasNotMember
                         }
 
-    def do(self, condition, data):
+    def __validateCondition(self, condition):
+
         s = condition.split(':')
+        if len(s) == 1:
+            raise Exception("Condition '%s' is not valid." % (condition))
+
+        if s[0] not in self.methods:
+            raise Exception("Condition '%s' has in invalid prefix '%s'" % (condition, s[0]))
+        else:
+            return s[0], ":".join(s[1:])
+
+
+    def do(self, condition, data):
+
+        method, value = self.__validateCondition(condition)
         try:
-            return self.methods[s[0]](':'.join(s[1:]), data)
-        except KeyError:
-            raise Exception("Unknown condition")
+            return self.methods[method](value, data)
+        except Exception as err:
+            raise Exception("There was an error processing condition '%' on value '%s'" % (condition, data))
 
     def regex(self, value, data):
         return bool(re.search(value, str(data)))
@@ -96,4 +109,3 @@ class MatchRules():
             return str(value) not in data
         else:
             return False
-

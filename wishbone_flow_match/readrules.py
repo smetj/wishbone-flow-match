@@ -23,12 +23,13 @@
 #
 
 from gevent import spawn
-import gevent_inotifyx as inotify
+from gevent import sleep
 from gevent import event
 from glob import glob
 import os
 import yaml
 from yaml.parser import ParserError
+from deepdiff import DeepDiff
 
 
 class ReadRulesDisk():
@@ -45,46 +46,84 @@ class ReadRulesDisk():
     '''
 
     def __init__(self, logger, directory="rules/"):
-        self.logger = logger
+        self.logging = logger
         self.directory = directory
+
+        self.__createDir(directory)
 
         if not os.access(self.directory, os.R_OK):
             raise Exception("Directory '%s' is not readable. Please verify." % (self.directory))
 
-        self.fd = inotify.init()
-        self.wb = inotify.add_watch(self.fd, self.directory, inotify.IN_CLOSE_WRITE + inotify.IN_CREATE + inotify.IN_DELETE + inotify.IN_MODIFY + inotify.IN_MOVE)
+        self.current_files = self.__readFileList(self.directory)
+        self.config = self.__parseFiles(self.current_files)
 
-    def readDirectory(self):
+        spawn(self.__monitorChanges)
+        self.__changes = event.Event()
+        self.__changes.clear()
 
-        return self.__readDirectory()
+    def __createDir(self, location):
 
-    def waitForChanges(self, grace_period=5):
+        if os.path.exists(location):
+            if not os.path.isdir(location):
+                raise Exception("%s exists but is not a directory" % (location))
+            else:
+                self.logging.info("Directory %s exists so I'm using it." % (location))
+        else:
+            self.logging.info("Directory %s does not exist so I'm creating it." % (location))
+            os.makedirs(location)
 
-        events = inotify.get_events(self.fd)
-        return self.readDirectory()
+    def getRules(self, block=True):
 
-    def __readDirectory(self):
+        return self.__parseFiles(self.current_files)
+
+    def getRulesWait(self):
+
+        self.__changes.wait()
+        self.__changes.clear()
+        return self.__parseFiles(self.current_files)
+
+    def __monitorChanges(self):
+
+        previous_files = self.__readFileList(self.directory)
+
+        while True:
+            current_files = self.__readFileList(self.directory)
+            if DeepDiff(previous_files, current_files, ignore_order=True) != {}:
+                previous_files = current_files
+                self.current_files = current_files
+                self.__changes.set()
+            else:
+                sleep(1)
+
+    def __readFileList(self, directory):
+
+        dir_content = []
+        for f in glob("%s/*.yaml" % (directory)):
+            dir_content.append({"filename": f, "mtime": os.path.getmtime(f)})
+        return dir_content
+
+    def __parseFiles(self, current_files):
         '''Reads the content of the given directory and creates a dict
         containing the rules.'''
 
         rules = {}
-        for filename in glob("%s/*.yaml" % (self.directory)):
+        for entry in current_files:
             try:
-                with open(filename, 'r') as f:
-                    key_name = os.path.basename(filename).rstrip(".yaml")
+                with open(entry["filename"], 'r') as f:
+                    key_name = os.path.basename(entry["filename"]).rstrip(".yaml")
                     rule = yaml.load("".join(f.readlines()))
                     try:
                         self.ruleCompliant(rule)
                     except Exception as err:
-                        self.logger.warning("Rule %s not valid. Skipped. Reason: %s" % (filename, err))
+                        self.logging.warning("Rule %s not valid. Skipped. Reason: %s" % (entry["filename"], err))
                     else:
                         rules[key_name] = rule
             except ParserError as err:
-                self.logger.warning("Failed to parse file %s.  Please validate the YAML syntax in a parser." % (filename))
+                self.logging.warning("Failed to parse file %s.  Please validate the YAML syntax in a parser." % (entry["filename"]))
             except IOError as err:
-                self.logger.warning("Failed to read %s.  Reason: %s" % (filename, err))
+                self.logging.warning("Failed to read %s.  Reason: %s" % (entry["filename"], err))
             except Exception as err:
-                self.logger.warning("Unknown error parsing file %s.  Skipped.  Reason: %s." % (filename, err))
+                self.logging.warning("Unknown error parsing file %s.  Skipped.  Reason: %s." % (entry["filename"], err))
 
         return rules
 
