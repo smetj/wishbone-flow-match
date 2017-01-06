@@ -27,7 +27,7 @@ from setuptools.command.test import test as TestCommand
 import sys
 
 PROJECT = 'wishbone_flow_match'
-VERSION = '1.1.0'
+VERSION = '1.2.0'
 
 install_requires = [
     'wishbone>=2.1.1',
@@ -57,7 +57,7 @@ setup(
     name=PROJECT,
     version=VERSION,
 
-    description='',
+    description='A Wishbone flow module for pattern matching on a key/value document stream.',
     long_description=long_description,
 
     author='Jelle Smet',
@@ -88,7 +88,7 @@ setup(
     zip_safe=False,
     entry_points={
         'wishbone.flow': [
-            'match=match:Match',
+            'match=wishbone_flow_match:Match',
         ]
     }
 )
