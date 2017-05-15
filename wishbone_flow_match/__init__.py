@@ -52,13 +52,16 @@ class Match(Actor):
 
         re:     Regex matching
         !re:    Negative regex matching
+        ==:     Equal to (string)
+        !==:    Not equal to (string)
         >:      Bigger than
         >=:     Bigger or equal than
         <:      Smaller than
         <=:     Smaller or equal than
-        =:      Equal than (numeric only)
-        in:     Evaluate list membership
-        !in:    Evaluate negative list membership
+        =:      Equal to (numerals only)
+        !=:     Not equal to (numeral only)
+        in:     Check whether element is in list
+        !in:    Check whether element is not in list
 
 
     - queue:
