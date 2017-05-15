@@ -110,7 +110,7 @@ class ReadRulesDisk():
         for entry in current_files:
             try:
                 with open(entry["filename"], 'r') as f:
-                    key_name = os.path.basename(entry["filename"]).rstrip(".yaml")
+                    key_name = os.path.abspath(entry["filename"])
                     rule = yaml.load("".join(f.readlines()))
                     try:
                         self.ruleCompliant(rule)

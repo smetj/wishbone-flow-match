@@ -96,6 +96,7 @@ def test_file_load():
     assert getter(match.pool.queue.file).get()["file"] == "one two three"
     shutil.rmtree('/tmp/wishbone_tests')
 
+
 def test_additinal_values():
 
     rule = {"regex": {
@@ -114,6 +115,7 @@ def test_additinal_values():
     e = Event({"regex": "one two three"})
     actor.pool.queue.inbox.put(e)
     assert getter(actor.pool.queue.regex).get("@tmp.match.one") == 1
+
 
 def test_regex():
 
@@ -148,6 +150,40 @@ def test_negative_regex():
     e.set({"neg_regex": "one twwo three"})
     actor.pool.queue.inbox.put(e)
     assert getter(actor.pool.queue.neg_regex).get()["neg_regex"] == "one twwo three"
+
+
+def test_equal_string():
+
+    rule = {"equal_string": {
+        "condition": [
+            {"equal_string": "==:hello"}
+        ],
+        "queue": [
+            {"equal_string": {}}
+        ]
+    }}
+
+    actor = generate_actor(rule)
+    e = Event({"equal_string": "hello"})
+    actor.pool.queue.inbox.put(e)
+    assert getter(actor.pool.queue.equal_string).get()["equal_string"] == "hello"
+
+
+def test_not_equal_string():
+
+    rule = {"equal_string": {
+        "condition": [
+            {"equal_string": "!==:hello"}
+        ],
+        "queue": [
+            {"equal_string": {}}
+        ]
+    }}
+
+    actor = generate_actor(rule)
+    e = Event({"equal_string": "goodbye"})
+    actor.pool.queue.inbox.put(e)
+    assert getter(actor.pool.queue.equal_string).get()["equal_string"] == "goodbye"
 
 
 def test_bigger_than():
@@ -246,6 +282,24 @@ def test_equal_to():
     one.set({"equal": "100"})
     actor.pool.queue.inbox.put(one)
     assert int(getter(actor.pool.queue.equal).get()["equal"]) == 100
+
+
+def test_not_equal_to():
+
+    rule = {"equal": {
+        "condition": [
+            {"equal": "!=:100"}
+        ],
+        "queue": [
+            {"equal": {}}
+        ]
+    }}
+
+    actor = generate_actor(rule)
+    one = Event("test")
+    one.set({"equal": "101"})
+    actor.pool.queue.inbox.put(one)
+    assert int(getter(actor.pool.queue.equal).get()["equal"]) == 101
 
 
 def test_list_membership():

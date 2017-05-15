@@ -52,13 +52,16 @@ class Match(Actor):
 
         re:     Regex matching
         !re:    Negative regex matching
+        ==:     Equal to (string)
+        !==:    Not equal to (string)
         >:      Bigger than
         >=:     Bigger or equal than
         <:      Smaller than
         <=:     Smaller or equal than
-        =:      Equal than (numeric only)
-        in:     Evaluate list membership
-        !in:    Evaluate negative list membership
+        =:      Equal to (numerals only)
+        !=:     Not equal to (numeral only)
+        in:     Check whether element is in list
+        !in:    Check whether element is not in list
 
 
     - queue:
@@ -203,19 +206,20 @@ class Match(Actor):
         if isinstance(event.get(), dict):
             self.rule_lock.acquire()
             for rule in self.__active_rules:
-                e = event.clone()
-                if self.evaluateCondition(self.__active_rules[rule]["condition"], e.get()):
-                    e.set(rule, '@tmp.%s.rule' % (self.name))
+                if self.evaluateCondition(self.__active_rules[rule]["condition"], event.get()):
                     for queue in self.__active_rules[rule]["queue"]:
-                        event_copy = e.clone()
+                        e = event.clone()
+                        e.set(rule, '@tmp.%s.rule_file_name' % (self.name))
+                        e.set(self.__active_rules[rule]["condition"], '@tmp.%s.condition' % (self.name))
                         for name in queue:
                             if queue[name] is not None:
                                 for key, value in queue[name].items():
-                                    event_copy.set(value, '@tmp.%s.%s' % (self.name, key))
-                            self.submit(event_copy, self.pool.getQueue(name))
+                                    e.set(value, '@tmp.%s.%s' % (self.name, key))
+                            e.set(name, '@tmp.%s.queue' % (self.name))
+                            self.submit(e, self.pool.getQueue(name))
                 else:
-                    e.set(rule, "@tmp.%s.rule" % (self.name))
-                    self.submit(e, self.pool.queue.nomatch)
+                    event.set(rule, '@tmp.%s.rule_file_name' % (self.name))
+                    self.submit(event, self.pool.queue.nomatch)
                     self.logging.debug("No match for rule '%s'." % (rule))
             self.rule_lock.release()
         else:
