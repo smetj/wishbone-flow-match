@@ -32,11 +32,14 @@ class MatchRules():
 
     re:     Regex matching
     !re:    Negative regex matching
+    ==:     Equal to (string)
+    !==:    Not equal to (string)
     >:      Bigger than
     >=:     Bigger or equal than
     <:      Smaller than
     <=:     Smaller or equal than
     =:      Equal to (numerals only)
+    !=:     Not equal to (numeral only)
     in:     Check whether element is in list
     !in:    Check whether element is not in list
     '''
@@ -44,6 +47,8 @@ class MatchRules():
     def __init__(self):
         self.methods = {"re": self.regex,
                         "!re": self.negRegex,
+                        "==": self.equalString,
+                        "!==": self.notEqualString,
                         ">": self.more,
                         ">=": self.moreOrEqual,
                         "<": self.less,
@@ -79,6 +84,12 @@ class MatchRules():
 
     def negRegex(self, value, data):
         return not bool(re.search(value, str(data)))
+
+    def equalString(self, value, data):
+        return str(value) == str(data)
+
+    def notEqualString(self, value, data):
+        return not(str(value) == str(data))
 
     def more(self, value, data):
         return float(data) > float(value)
