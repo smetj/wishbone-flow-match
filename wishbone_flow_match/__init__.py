@@ -218,7 +218,6 @@ class Match(Actor):
                             e.set(name, '@tmp.%s.queue' % (self.name))
                             self.submit(e, self.pool.getQueue(name))
                 else:
-                    event.set(rule, '@tmp.%s.rule_file_name' % (self.name))
                     self.submit(event, self.pool.queue.nomatch)
                     self.logging.debug("No match for rule '%s'." % (rule))
             self.rule_lock.release()
