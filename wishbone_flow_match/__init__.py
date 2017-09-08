@@ -113,6 +113,8 @@ class Match(Actor):
                 template: host_email_alert
 
 
+    Field names can refer to nested dictionaries using a dot notation.
+
 
     Parameters:
 
@@ -177,7 +179,7 @@ class Match(Actor):
     def activateNewRules(self, rules):
 
         self.rule_lock.acquire()
-        self.__active_rules={}
+        self.__active_rules = {}
         self.__active_rules.update(rules)
         self.__active_rules.update(self.kwargs.rules)
         self.logging.info("Read %s rules from disk and %s defined in config." % (len(rules), len(self.kwargs.rules)))
@@ -206,7 +208,7 @@ class Match(Actor):
         if isinstance(event.get(), dict):
             self.rule_lock.acquire()
             for rule in self.__active_rules:
-                if self.evaluateCondition(self.__active_rules[rule]["condition"], event.get()):
+                if self.evaluateCondition(self.__active_rules[rule]["condition"], event):
                     for queue in self.__active_rules[rule]["queue"]:
                         e = event.clone()
                         e.set(rule, '@tmp.%s.rule_file_name' % (self.name))
@@ -224,18 +226,18 @@ class Match(Actor):
         else:
             raise Exception("Incoming data is not of type dict, dropped.")
 
-    def evaluateCondition(self, conditions, fields):
+    def evaluateCondition(self, conditions, event):
         for condition in conditions:
             for field in condition:
-                if field in fields:
+                if event.has('@data.%s' % (field)):
                     try:
-                        match_result = self.match.do(condition[field], fields[field])
+                        match_result = self.match.do(condition[field], event.get('@data.%s' % (field)))
                     except Exception as err:
                         self.logging.error("Invalid condition '%s'. Skipped.  Reason: '%s'" % (condition[field], err))
                         return False
                     else:
                         if not match_result:
-                            self.logging.debug("field '%s' with condition '%s' DOES NOT MATCH value '%s'" % (field, condition[field], fields[field]))
+                            self.logging.debug("field '%s' with condition '%s' DOES NOT MATCH value '%s'" % (field, condition[field], event.get('@data.%s' % (field))))
                             return False
                 else:
                     if not self.kwargs.ignore_missing_fields:

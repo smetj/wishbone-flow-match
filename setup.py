@@ -27,7 +27,7 @@ from setuptools.command.test import test as TestCommand
 import sys
 
 PROJECT = 'wishbone_flow_match'
-VERSION = '1.2.2'
+VERSION = '1.2.4'
 
 install_requires = [
     'wishbone>=2.1.1',
