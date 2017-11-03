@@ -178,12 +178,11 @@ class Match(Actor):
 
     def activateNewRules(self, rules):
 
-        self.rule_lock.acquire()
-        self.__active_rules = {}
-        self.__active_rules.update(rules)
-        self.__active_rules.update(self.kwargs.rules)
-        self.logging.info("Read %s rules from disk and %s defined in config." % (len(rules), len(self.kwargs.rules)))
-        self.rule_lock.release()
+        with self.rule_lock:
+            self.__active_rules = {}
+            self.__active_rules.update(rules)
+            self.__active_rules.update(self.kwargs.rules)
+            self.logging.info("Read %s rules from disk and %s defined in config." % (len(rules), len(self.kwargs.rules)))
 
     def monitorRuleDirectory(self):
 
@@ -206,23 +205,22 @@ class Match(Actor):
         the defined header.'''
 
         if isinstance(event.get(), dict):
-            self.rule_lock.acquire()
-            for rule in self.__active_rules:
-                if self.evaluateCondition(self.__active_rules[rule]["condition"], event):
-                    for queue in self.__active_rules[rule]["queue"]:
-                        e = event.clone()
-                        e.set(rule, '@tmp.%s.rule_file_name' % (self.name))
-                        e.set(self.__active_rules[rule]["condition"], '@tmp.%s.condition' % (self.name))
-                        for name in queue:
-                            if queue[name] is not None:
-                                for key, value in queue[name].items():
-                                    e.set(value, '@tmp.%s.%s' % (self.name, key))
-                            e.set(name, '@tmp.%s.queue' % (self.name))
-                            self.submit(e, self.pool.getQueue(name))
-                else:
-                    self.submit(event, self.pool.queue.nomatch)
-                    self.logging.debug("No match for rule '%s'." % (rule))
-            self.rule_lock.release()
+            with self.rule_lock:
+                for rule in self.__active_rules:
+                    if self.evaluateCondition(self.__active_rules[rule]["condition"], event):
+                        for queue in self.__active_rules[rule]["queue"]:
+                            e = event.clone()
+                            e.set(rule, '@tmp.%s.rule_file_name' % (self.name))
+                            e.set(self.__active_rules[rule]["condition"], '@tmp.%s.condition' % (self.name))
+                            for name in queue:
+                                if queue[name] is not None:
+                                    for key, value in queue[name].items():
+                                        e.set(value, '@tmp.%s.%s' % (self.name, key))
+                                e.set(name, '@tmp.%s.queue' % (self.name))
+                                self.submit(e, self.pool.getQueue(name))
+                    else:
+                        self.submit(event, self.pool.queue.nomatch)
+                        self.logging.debug("No match for rule '%s'." % (rule))
         else:
             raise Exception("Incoming data is not of type dict, dropped.")
 
