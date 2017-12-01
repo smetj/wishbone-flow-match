@@ -4,7 +4,7 @@
     .--.--.--|__.-----|  |--|  |--.-----.-----.-----.
     |  |  |  |  |__ --|     |  _  |  _  |     |  -__|
     |________|__|_____|__|__|_____|_____|__|__|_____|
-                                       version 2.3.2
+                                       version 2.3.3
 
     Build composable event pipeline servers with minimal effort.
 
@@ -14,7 +14,7 @@
     wishbone.flow.match
     ===================
 
-    Version: 1.2.2
+    Version: 1.2.4
 
     Pattern matching on a key/value document stream.
     ------------------------------------------------
@@ -38,13 +38,16 @@
 
             re:     Regex matching
             !re:    Negative regex matching
+            ==:     Equal to (string)
+            !==:    Not equal to (string)
             >:      Bigger than
             >=:     Bigger or equal than
             <:      Smaller than
             <=:     Smaller or equal than
-            =:      Equal than (numeric only)
-            in:     Evaluate list membership
-            !in:    Evaluate negative list membership
+            =:      Equal to (numerals only)
+            !=:     Not equal to (numeral only)
+            in:     Check whether element is in list
+            !in:    Check whether element is not in list
 
 
         - queue:
@@ -133,3 +136,4 @@
 
             - nomatch
                |  The queue receiving event without matches
+

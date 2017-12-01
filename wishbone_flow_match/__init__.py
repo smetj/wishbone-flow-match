@@ -113,6 +113,8 @@ class Match(Actor):
                 template: host_email_alert
 
 
+    Field names can refer to nested dictionaries using a dot notation.
+
 
     Parameters:
 
@@ -139,6 +141,8 @@ class Match(Actor):
            |  condition this will simply be ignored and therefor can still yield a match.
            |  When set to False(default) a missing field will automatically result in a non-match.
 
+        - log_matches(boot)(False)
+           |  Logs the matching logic. Optional because can cause many events/traffic.
 
     Queues:
 
@@ -153,7 +157,7 @@ class Match(Actor):
 
     '''
 
-    def __init__(self, actor_config, location="", rules={}, ignore_missing_fields=False):
+    def __init__(self, actor_config, location="", rules={}, ignore_missing_fields=False, log_matches=False):
         Actor.__init__(self, actor_config)
 
         self.pool.createQueue("inbox")
@@ -176,12 +180,11 @@ class Match(Actor):
 
     def activateNewRules(self, rules):
 
-        self.rule_lock.acquire()
-        self.__active_rules={}
-        self.__active_rules.update(rules)
-        self.__active_rules.update(self.kwargs.rules)
-        self.logging.info("Read %s rules from disk and %s defined in config." % (len(rules), len(self.kwargs.rules)))
-        self.rule_lock.release()
+        with self.rule_lock:
+            self.__active_rules = {}
+            self.__active_rules.update(rules)
+            self.__active_rules.update(self.kwargs.rules)
+            self.logging.info("Read %s rules from disk and %s defined in config." % (len(rules), len(self.kwargs.rules)))
 
     def monitorRuleDirectory(self):
 
@@ -204,39 +207,40 @@ class Match(Actor):
         the defined header.'''
 
         if isinstance(event.get(), dict):
-            self.rule_lock.acquire()
-            for rule in self.__active_rules:
-                if self.evaluateCondition(self.__active_rules[rule]["condition"], event.get()):
-                    for queue in self.__active_rules[rule]["queue"]:
-                        e = event.clone()
-                        e.set(rule, '@tmp.%s.rule_file_name' % (self.name))
-                        e.set(self.__active_rules[rule]["condition"], '@tmp.%s.condition' % (self.name))
-                        for name in queue:
-                            if queue[name] is not None:
-                                for key, value in queue[name].items():
-                                    e.set(value, '@tmp.%s.%s' % (self.name, key))
-                            e.set(name, '@tmp.%s.queue' % (self.name))
-                            self.submit(e, self.pool.getQueue(name))
-                else:
-                    event.set(rule, '@tmp.%s.rule_file_name' % (self.name))
-                    self.submit(event, self.pool.queue.nomatch)
-                    self.logging.debug("No match for rule '%s'." % (rule))
-            self.rule_lock.release()
+            with self.rule_lock:
+                for rule in self.__active_rules:
+                    if self.evaluateCondition(self.__active_rules[rule]["condition"], event):
+                        for queue in self.__active_rules[rule]["queue"]:
+                            e = event.clone()
+                            e.set(rule, '@tmp.%s.rule_file_name' % (self.name))
+                            e.set(self.__active_rules[rule]["condition"], '@tmp.%s.condition' % (self.name))
+                            for name in queue:
+                                if queue[name] is not None:
+                                    for key, value in queue[name].items():
+                                        e.set(value, '@tmp.%s.%s' % (self.name, key))
+                                e.set(name, '@tmp.%s.queue' % (self.name))
+                                self.submit(e, self.pool.getQueue(name))
+                    else:
+                        self.submit(event, self.pool.queue.nomatch)
+                        if self.kwargs.log_matches:
+                            self.logging.debug("No match for rule '%s'." % (rule))
         else:
             raise Exception("Incoming data is not of type dict, dropped.")
 
-    def evaluateCondition(self, conditions, fields):
+    def evaluateCondition(self, conditions, event):
         for condition in conditions:
             for field in condition:
-                if field in fields:
+                if event.has('@data.%s' % (field)):
                     try:
-                        match_result = self.match.do(condition[field], fields[field])
+                        match_result = self.match.do(condition[field], event.get('@data.%s' % (field)))
                     except Exception as err:
-                        self.logging.error("Invalid condition '%s'. Skipped.  Reason: '%s'" % (condition[field], err))
+                        if self.kwargs.log_matches:
+                            self.logging.error("Invalid condition '%s'. Skipped.  Reason: '%s'" % (condition[field], err))
                         return False
                     else:
                         if not match_result:
-                            self.logging.debug("field '%s' with condition '%s' DOES NOT MATCH value '%s'" % (field, condition[field], fields[field]))
+                            if self.kwargs.log_matches:
+                                self.logging.debug("field '%s' with condition '%s' DOES NOT MATCH value '%s'" % (field, condition[field], event.get('@data.%s' % (field))))
                             return False
                 else:
                     if not self.kwargs.ignore_missing_fields:

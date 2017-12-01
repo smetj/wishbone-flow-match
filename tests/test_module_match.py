@@ -97,7 +97,7 @@ def test_file_load():
     shutil.rmtree('/tmp/wishbone_tests')
 
 
-def test_additinal_values():
+def test_additional_values():
 
     rule = {"regex": {
         "condition": [
@@ -336,3 +336,20 @@ def test_negative_list_membership():
     one.set({"list_membership": ["one", "three", "two"]})
     actor.pool.queue.inbox.put(one)
     assert "test" not in getter(actor.pool.queue.list_membership).get()["list_membership"]
+
+
+def test_dict_depth():
+
+    rule = {"regex": {
+        "condition": [
+            {"regex.one.two.three": "re:.*?two.*"}
+        ],
+        "queue": [
+            {"regex": {}}
+        ]
+    }}
+
+    actor = generate_actor(rule)
+    e = Event({"regex": {"one": {"two": {"three": "one two three"}}}})
+    actor.pool.queue.inbox.put(e)
+    assert getter(actor.pool.queue.regex).get()["regex"] == {"one": {"two": {"three": "one two three"}}}
