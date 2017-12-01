@@ -141,6 +141,8 @@ class Match(Actor):
            |  condition this will simply be ignored and therefor can still yield a match.
            |  When set to False(default) a missing field will automatically result in a non-match.
 
+        - log_matches(boot)(False)
+           |  Logs the matching logic. Optional because can cause many events/traffic.
 
     Queues:
 
@@ -155,7 +157,7 @@ class Match(Actor):
 
     '''
 
-    def __init__(self, actor_config, location="", rules={}, ignore_missing_fields=False):
+    def __init__(self, actor_config, location="", rules={}, ignore_missing_fields=False, log_matches=False):
         Actor.__init__(self, actor_config)
 
         self.pool.createQueue("inbox")
@@ -220,7 +222,8 @@ class Match(Actor):
                                 self.submit(e, self.pool.getQueue(name))
                     else:
                         self.submit(event, self.pool.queue.nomatch)
-                        self.logging.debug("No match for rule '%s'." % (rule))
+                        if self.kwargs.log_matches:
+                            self.logging.debug("No match for rule '%s'." % (rule))
         else:
             raise Exception("Incoming data is not of type dict, dropped.")
 
@@ -231,11 +234,13 @@ class Match(Actor):
                     try:
                         match_result = self.match.do(condition[field], event.get('@data.%s' % (field)))
                     except Exception as err:
-                        self.logging.error("Invalid condition '%s'. Skipped.  Reason: '%s'" % (condition[field], err))
+                        if self.kwargs.log_matches:
+                            self.logging.error("Invalid condition '%s'. Skipped.  Reason: '%s'" % (condition[field], err))
                         return False
                     else:
                         if not match_result:
-                            self.logging.debug("field '%s' with condition '%s' DOES NOT MATCH value '%s'" % (field, condition[field], event.get('@data.%s' % (field))))
+                            if self.kwargs.log_matches:
+                                self.logging.debug("field '%s' with condition '%s' DOES NOT MATCH value '%s'" % (field, condition[field], event.get('@data.%s' % (field))))
                             return False
                 else:
                     if not self.kwargs.ignore_missing_fields:
